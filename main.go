@@ -6,14 +6,11 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 )
-
-var invalidToken = "invalid token. Token must have head, payload and sign. Ex. head.payload.sign"
 
 type flags struct {
 	token string
@@ -21,12 +18,6 @@ type flags struct {
 	key string
 	wordlist string
 	verbose bool
-}
-
-type jwt struct {
-	head []byte
-	payload []byte
-	sign []byte
 }
 
 func main() {
@@ -39,14 +30,14 @@ func main() {
 	}
 	switch flags.mode {
 	case "identify":
-		jwt, err := stringToJWT(flags.token)
+		jwt, err := New(flags.token)
 		if err != nil {
 			fmt.Printf("failed to split jwt : %s\n", flags.token)
 			fmt.Println(err)
 			return
 		}
 
-		fmt.Printf("\nHead : %s\nPayload : %s\n", jwt.head, jwt.payload)
+		fmt.Printf("\nHead : %s\nPayload : %s\n", jwt.EncodedHeader(), jwt.EncodedPayload())
 
 	case "key":
 		t := strings.Split(flags.token, ".")
@@ -123,35 +114,6 @@ func getFlags() *flags {
 
 	flag.Parse()
 	return &flags{token: *token, mode: *mode, key: *key, wordlist: *wordlist, verbose: *verbose}
-}
-
-func stringToJWT(token string) (*jwt, error) {
-	var (
-		err error
-		head []byte
-		payload []byte
-		sign []byte
-	)
-	ts := strings.Split(token, ".")
-	tl := len(ts)
-
-	if tl != 3 {
-		return nil, errors.New(invalidToken)
-	}
-	head, err = base64.RawURLEncoding.DecodeString(ts[0])
-	if err != nil {
-		return nil, err
-	}
-	payload, err = base64.RawURLEncoding.DecodeString(ts[1])
-	if err != nil {
-		return nil, err
-	}
-	sign, err = base64.RawURLEncoding.DecodeString(ts[2])
-	if err != nil {
-		return nil, err
-	}
-
-	return &jwt{head, payload,sign}, nil
 }
 
 func art() {
