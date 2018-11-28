@@ -10,7 +10,7 @@ import (
 type flags struct {
 	token    string
 	mode     string
-	key      string
+	secret   string
 	wordlist string
 	verbose  bool
 }
@@ -19,7 +19,7 @@ func main() {
 	art()
 	flags := getFlags()
 
-	if flags.mode != "identify" && flags.mode != "key" && flags.mode != "wordlist" {
+	if flags.mode != "identify" && flags.mode != "secret" && flags.mode != "wordlist" {
 		fmt.Printf("Unknown mode. Mode must be 'identify', 'password' or 'wordlist'\n")
 		return
 	}
@@ -30,18 +30,18 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		fmt.Printf("\nHead : %s\nPayload : %s\n", jwt.EncodedHeader(), jwt.EncodedPayload())
-	case "key":
+		fmt.Printf("\nHead : %s\nPayload : %s\n", jwt.Header(), jwt.Payload())
+	case "secret":
 		token, err := NewFromTokenString(flags.token)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		if IsSecretUsedForTokenSignature(token, flags.key) == false {
-			fmt.Printf("Incorrect key - %s\n", flags.key)
+		if IsSecretUsedForTokenSignature(token, flags.secret) == false {
+			fmt.Printf("Incorrect secret - %s\n", flags.secret)
 			return
 		}
-		fmt.Printf("Correct key : %s\n", flags.key)
+		fmt.Printf("Correct secret : %s\n", flags.secret)
 	case "wordlist":
 		wordListInFile, err := os.Open(flags.wordlist)
 		if err != nil {
@@ -62,18 +62,18 @@ func main() {
 		}
 		reader := bufio.NewReader(wordListInFile)
 		for {
-			key, err := reader.ReadBytes('\n')
+			secret, err := reader.ReadBytes('\n')
 			if err != nil {
 				break
 			}
-			strippedKey := string(key[0 : len(key)-1]) // strip newline
-			if IsSecretUsedForTokenSignature(token, strippedKey) == false {
+			strippedSecret := string(secret[0 : len(secret)-1]) // strip newline
+			if IsSecretUsedForTokenSignature(token, strippedSecret) == false {
 				if flags.verbose {
-					fmt.Printf("Incorrect key - %s\n", strippedKey)
+					fmt.Printf("Incorrect secret - %s\n", strippedSecret)
 				}
 				continue
 			} else {
-				fmt.Printf("Found key - %s\n", strippedKey)
+				fmt.Printf("Found secret - %s\n", strippedSecret)
 				break
 			}
 		}
@@ -86,12 +86,12 @@ func main() {
 func getFlags() *flags {
 	token := flag.String("t", "", "JWT Token")
 	mode := flag.String("m", "", "Mode")
-	key := flag.String("k", "", "Test key")
+	secret := flag.String("k", "", "Test secret")
 	wordlist := flag.String("w", "", "Wordlist")
 	verbose := flag.Bool("v", false, "Verbose output")
 
 	flag.Parse()
-	return &flags{token: *token, mode: *mode, key: *key, wordlist: *wordlist, verbose: *verbose}
+	return &flags{token: *token, mode: *mode, secret: *secret, wordlist: *wordlist, verbose: *verbose}
 }
 
 func art() {
