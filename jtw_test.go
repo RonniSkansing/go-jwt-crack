@@ -11,19 +11,23 @@ import (
 var secret = "your-256-bit-secret"
 var header = `{"alg":"HS256","typ":"JWT"}`
 var payload = `{"sub":"1234567890","name":"John Doe","iat":1516239022}`
-var signature []byte
 var encodedHeader = base64.RawURLEncoding.EncodeToString([]byte(header))
 var encodedPayload = base64.RawURLEncoding.EncodeToString([]byte(payload))
-var encodedSignature = base64.RawURLEncoding.EncodeToString([]byte(signature))
-var token = buildToken(encodedHeader, encodedPayload, encodedSignature)
+var signature []byte
+var encodedSignature string
+var token string
 
 func init() {
 	setSignature()
 }
 
 func setSignature() {
+	encodedHeaderAndPayload := []byte(encodedHeader + "." + encodedPayload)
 	signatureHash := hmac.New(sha256.New, []byte(secret))
-	signatureHash.Write(signature)
+	signatureHash.Write(encodedHeaderAndPayload)
+	signature = signatureHash.Sum(nil)
+	encodedSignature = base64.RawURLEncoding.EncodeToString(signature)
+	token = buildToken(encodedHeader, encodedPayload, encodedSignature)
 }
 
 func buildToken(header string, payload string, signature string) string {
@@ -31,20 +35,20 @@ func buildToken(header string, payload string, signature string) string {
 }
 
 func jwtToken() JWT {
-	jwt, _ := New(token)
+	jwt, _ := NewFromTokenString(token)
 	return jwt
 }
 
-func TestNew(t *testing.T) {
-	newErrorsIfNotHavingHeaderAndPayloadAndSignature(t)
-	newErrorsIfNotAbleToDecodeHeader(t)
-	newErrorsIfNotAbleToDecodePayload(t)
-	newErrorsIfNotAbleToDecodeSignature(t)
+func TestNewFromTokenString(t *testing.T) {
+	newFromTokenStringErrorsIfNotHavingHeaderAndPayloadAndSignature(t)
+	newFromTokenStringErrorsIfNotAbleToDecodeHeader(t)
+	newFromTokenStringErrorsIfNotAbleToDecodePayload(t)
+	newFromTokenStringErrorsIfNotAbleToDecodeSignature(t)
 }
 
-func newErrorsIfNotHavingHeaderAndPayloadAndSignature(t *testing.T) {
+func newFromTokenStringErrorsIfNotHavingHeaderAndPayloadAndSignature(t *testing.T) {
 	incompleteToken := "incomplete.token"
-	_, err := New(incompleteToken)
+	_, err := NewFromTokenString(incompleteToken)
 	if err == nil {
 		t.Errorf("incomplete token ( %s ) must error", incompleteToken)
 	}
@@ -53,25 +57,25 @@ func newErrorsIfNotHavingHeaderAndPayloadAndSignature(t *testing.T) {
 	}
 }
 
-func newErrorsIfNotAbleToDecodeHeader(t *testing.T) {
+func newFromTokenStringErrorsIfNotAbleToDecodeHeader(t *testing.T) {
 	tokenWithInvalidHeader := buildToken("Ø"+encodedHeader, encodedPayload, encodedSignature)
-	_, err := New(tokenWithInvalidHeader)
+	_, err := NewFromTokenString(tokenWithInvalidHeader)
 	if err == nil {
 		t.Errorf("token with invalid Header must error \ntoken %s", tokenWithInvalidHeader)
 	}
 }
 
-func newErrorsIfNotAbleToDecodePayload(t *testing.T) {
+func newFromTokenStringErrorsIfNotAbleToDecodePayload(t *testing.T) {
 	tokenWithInvalidPayload := buildToken(encodedHeader, "Ø"+encodedPayload, encodedSignature)
-	_, err := New(tokenWithInvalidPayload)
+	_, err := NewFromTokenString(tokenWithInvalidPayload)
 	if err == nil {
 		t.Errorf("token with invalid Payload must error \ntoken %s", tokenWithInvalidPayload)
 	}
 }
 
-func newErrorsIfNotAbleToDecodeSignature(t *testing.T) {
+func newFromTokenStringErrorsIfNotAbleToDecodeSignature(t *testing.T) {
 	tokenWithInvalidSignature := buildToken(encodedHeader, encodedPayload, "Ø"+encodedSignature)
-	_, err := New(tokenWithInvalidSignature)
+	_, err := NewFromTokenString(tokenWithInvalidSignature)
 	if err == nil {
 		t.Errorf("token with invalid Signature must error \ntoken %s", tokenWithInvalidSignature)
 	}
@@ -116,5 +120,26 @@ func TestJwt_EncodedSignature(t *testing.T) {
 	jwt := jwtToken()
 	if bytes.Equal(jwt.EncodedSignature(), []byte(encodedSignature)) == false {
 		t.Errorf("returned encoded signature does not match encoded signature ( %s != %s )", jwt.EncodedSignature(), encodedSignature)
+	}
+}
+
+func TestIsSecretUsedForTokenSignature(t *testing.T) {
+	jwt := jwtToken()
+	correctSecret := secret
+	incorrectSecret := "4242"
+
+	testISSecretReturnsTrueWhenSignatureMatches(t, jwt, correctSecret)
+	testISSecretReturnsFalseWhenSignatureMatches(t, jwt, incorrectSecret)
+}
+
+func testISSecretReturnsTrueWhenSignatureMatches(t *testing.T, jwt JWT, secret string) {
+	if IsSecretUsedForTokenSignature(jwt, secret) == false {
+		t.Errorf("Signture was expected to match, but did not")
+	}
+}
+
+func testISSecretReturnsFalseWhenSignatureMatches(t *testing.T, jwt JWT, secret string) {
+	if IsSecretUsedForTokenSignature(jwt, secret) == true {
+		t.Errorf("Signture was not expected to match, but did")
 	}
 }

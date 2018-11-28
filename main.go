@@ -2,22 +2,17 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 )
 
 type flags struct {
-	token string
-	mode string
-	key string
+	token    string
+	mode     string
+	key      string
 	wordlist string
-	verbose bool
+	verbose  bool
 }
 
 func main() {
@@ -30,70 +25,53 @@ func main() {
 	}
 	switch flags.mode {
 	case "identify":
-		jwt, err := New(flags.token)
+		jwt, err := NewFromTokenString(flags.token)
 		if err != nil {
-			fmt.Printf("failed to split jwt : %s\n", flags.token)
 			fmt.Println(err)
 			return
 		}
-
 		fmt.Printf("\nHead : %s\nPayload : %s\n", jwt.EncodedHeader(), jwt.EncodedPayload())
-
 	case "key":
-		t := strings.Split(flags.token, ".")
-		if len(t) != 3 {
-			fmt.Printf(invalidToken)
-			return
-		}
-		headAndPayload := t[0] + "." + t[1]
-		oldSign, err := base64.RawURLEncoding.DecodeString(t[2])
+		token, err := NewFromTokenString(flags.token)
 		if err != nil {
-			fmt.Printf("Could not decode signing of token : %s\n", err)
-		}
-		mac := hmac.New(sha256.New, []byte(flags.key))
-		mac.Write([]byte(headAndPayload))
-		newSign := mac.Sum(nil)
-
-		if bytes.Equal(newSign, oldSign) == false {
-			fmt.Printf("Incorrect key - %s", flags.key)
+			fmt.Println(err)
 			return
 		}
-
+		if IsSecretUsedForTokenSignature(token, flags.key) == false {
+			fmt.Printf("Incorrect key - %s\n", flags.key)
+			return
+		}
 		fmt.Printf("Correct key : %s\n", flags.key)
 	case "wordlist":
-		wl, err := os.Open(flags.wordlist)
+		wordListInFile, err := os.Open(flags.wordlist)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		defer wl.Close()
+		defer func() {
+			err := wordListInFile.Close()
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
 
-		t := strings.Split(flags.token, ".")
-		if len(t) != 3 {
-			fmt.Printf(invalidToken)
-			return
-		}
-		headAndPayload := t[0] + "." + t[1]
-		oldSign, err := base64.RawURLEncoding.DecodeString(t[2])
+		token, err := NewFromTokenString(flags.token)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		reader := bufio.NewReader(wl)
+		reader := bufio.NewReader(wordListInFile)
 		for {
 			key, err := reader.ReadBytes('\n')
 			if err != nil {
 				break
 			}
-			strippedKey := key[0:len(key)-1] // strip newline
-			mac := hmac.New(sha256.New, strippedKey)
-			mac.Write([]byte(headAndPayload))
-			newSign := mac.Sum(nil)
-
-			if bytes.Equal(newSign, oldSign) == false {
+			strippedKey := string(key[0 : len(key)-1]) // strip newline
+			if IsSecretUsedForTokenSignature(token, strippedKey) == false {
 				if flags.verbose {
 					fmt.Printf("Incorrect key - %s\n", strippedKey)
 				}
+				continue
 			} else {
 				fmt.Printf("Found key - %s\n", strippedKey)
 				break

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"strings"
@@ -50,7 +53,16 @@ type JWT interface {
 	EncodedSignature() []byte
 }
 
-func New(token string) (JWT, error) {
+func IsSecretUsedForTokenSignature(jwt JWT, secret string) bool {
+	headerAndPayload := string(jwt.EncodedHeader()) + "." + string(jwt.EncodedPayload())
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(headerAndPayload))
+	signature := mac.Sum(nil)
+
+	return bytes.Equal(signature, jwt.Signature())
+}
+
+func NewFromTokenString(token string) (JWT, error) {
 	var (
 		err              error
 		encodedHeader    []byte
@@ -78,11 +90,11 @@ func New(token string) (JWT, error) {
 	}
 
 	return &jwt{
-		header: encodedHeader,
-		payload: encodedPayload,
-		signature: encodedSignature,
-		encodedHeader: []byte(ts[0]),
-		encodedPayload: []byte(ts[1]),
+		header:           encodedHeader,
+		payload:          encodedPayload,
+		signature:        encodedSignature,
+		encodedHeader:    []byte(ts[0]),
+		encodedPayload:   []byte(ts[1]),
 		encodedSignature: []byte(ts[2]),
 	}, nil
 }
