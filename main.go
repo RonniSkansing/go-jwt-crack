@@ -11,7 +11,7 @@ type flags struct {
 	token    string
 	mode     string
 	secret   string
-	wordlist string
+	wordList string
 	verbose  bool
 }
 
@@ -19,8 +19,8 @@ func main() {
 	art()
 	flags := getFlags()
 
-	if flags.mode != "identify" && flags.mode != "secret" && flags.mode != "wordlist" {
-		fmt.Printf("Unknown mode. Mode must be 'identify', 'password' or 'wordlist'\n")
+	if flags.mode != "identify" && flags.mode != "secret" && flags.mode != "wordList" {
+		printUnknownMode()
 		return
 	}
 	switch flags.mode {
@@ -30,7 +30,7 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		fmt.Printf("\nHead : %s\nPayload : %s\n", jwt.Header(), jwt.Payload())
+		printDecodedTokenHeaderAndPayload(jwt.Header(), jwt.Payload())
 	case "secret":
 		token, err := NewFromTokenString(flags.token)
 		if err != nil {
@@ -38,12 +38,12 @@ func main() {
 			return
 		}
 		if IsSecretUsedForTokenSignature(token, flags.secret) == false {
-			fmt.Printf("Incorrect secret - %s\n", flags.secret)
+			printIncorrectGuessAtSecret(flags.secret)
 			return
 		}
-		fmt.Printf("Correct secret : %s\n", flags.secret)
-	case "wordlist":
-		wordListInFile, err := os.Open(flags.wordlist)
+		printCorrectGuessAtSecret(flags.secret)
+	case "wordList":
+		wordListInFile, err := os.Open(flags.wordList)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -62,23 +62,23 @@ func main() {
 		}
 		reader := bufio.NewReader(wordListInFile)
 		for {
-			secret, err := reader.ReadBytes('\n')
+			secretLine, err := reader.ReadBytes('\n')
 			if err != nil {
 				break
 			}
-			strippedSecret := string(secret[0 : len(secret)-1]) // strip newline
-			if IsSecretUsedForTokenSignature(token, strippedSecret) == false {
+			secret := string(secretLine[0 : len(secretLine)-1]) // strip newline
+			if IsSecretUsedForTokenSignature(token, secret) == false {
 				if flags.verbose {
-					fmt.Printf("Incorrect secret - %s\n", strippedSecret)
+					printIncorrectGuessAtSecret(secret)
 				}
 				continue
 			} else {
-				fmt.Printf("Found secret - %s\n", strippedSecret)
+				printCorrectGuessAtSecret(secret)
 				break
 			}
 		}
 	default:
-		fmt.Printf("Unknown mode : %s", flags.mode)
+		printUnknownMode()
 		return
 	}
 }
@@ -87,11 +87,27 @@ func getFlags() *flags {
 	token := flag.String("t", "", "JWT Token")
 	mode := flag.String("m", "", "Mode")
 	secret := flag.String("k", "", "Test secret")
-	wordlist := flag.String("w", "", "Wordlist")
+	wordList := flag.String("w", "", "Wordlist")
 	verbose := flag.Bool("v", false, "Verbose output")
 
 	flag.Parse()
-	return &flags{token: *token, mode: *mode, secret: *secret, wordlist: *wordlist, verbose: *verbose}
+	return &flags{token: *token, mode: *mode, secret: *secret, wordList: *wordList, verbose: *verbose}
+}
+
+func printCorrectGuessAtSecret(secret string) {
+	fmt.Printf("Correct secret : %s\n", secret)
+}
+
+func printIncorrectGuessAtSecret(secret string) {
+	fmt.Printf("Incorrect secret - %s\n", secret)
+}
+
+func printDecodedTokenHeaderAndPayload(decodedHeader []byte, decodedPayload []byte) {
+	fmt.Printf("\nHead : %s\nPayload : %s\n", decodedHeader, decodedPayload)
+}
+
+func printUnknownMode() {
+	fmt.Printf("Unknown mode. Mode must be 'identify', 'password' or 'wordList'\n")
 }
 
 func art() {
