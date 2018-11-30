@@ -15,23 +15,36 @@ type flags struct {
 	verbose  bool
 }
 
+const (
+	modeShowInformation           = "identify"
+	modeTryGuessAtPassword        = "secret"
+	modeGuessPasswordWithWordList = "wordlist"
+)
+
+var modes = []string{
+	modeShowInformation,
+	modeTryGuessAtPassword,
+	modeGuessPasswordWithWordList,
+}
+
 func main() {
 	art()
 	flags := getFlags()
 
-	if flags.mode != "identify" && flags.mode != "secret" && flags.mode != "wordList" {
+	if isValidModeInFlags(flags) == false {
 		printUnknownMode()
 		return
 	}
+
 	switch flags.mode {
-	case "identify":
+	case modeShowInformation:
 		jwt, err := NewFromTokenString(flags.token)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 		printDecodedTokenHeaderAndPayload(jwt.Header(), jwt.Payload())
-	case "secret":
+	case modeTryGuessAtPassword:
 		token, err := NewFromTokenString(flags.token)
 		if err != nil {
 			fmt.Println(err)
@@ -42,7 +55,7 @@ func main() {
 			return
 		}
 		printCorrectGuessAtSecret(flags.secret)
-	case "wordList":
+	case modeGuessPasswordWithWordList:
 		wordListInFile, err := os.Open(flags.wordList)
 		if err != nil {
 			fmt.Println(err)
@@ -92,6 +105,17 @@ func getFlags() *flags {
 
 	flag.Parse()
 	return &flags{token: *token, mode: *mode, secret: *secret, wordList: *wordList, verbose: *verbose}
+}
+
+func isValidModeInFlags(flags *flags) bool {
+	isValidMode := false
+	for _, mode := range modes {
+		if mode == flags.mode {
+			isValidMode = true
+		}
+	}
+
+	return isValidMode
 }
 
 func printCorrectGuessAtSecret(secret string) {
