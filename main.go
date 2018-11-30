@@ -127,7 +127,7 @@ func printDecodedTokenHeaderAndPayload(decodedHeader []byte, decodedPayload []by
 }
 
 func printUnknownMode() {
-	fmt.Printf("Unknown mode. Mode must be 'identify', 'password' or 'wordList'\n")
+	fmt.Printf("Unknown mode. Mode must be 'info', 'guess' or 'wordList'\n")
 }
 
 func printAppHeader() {
