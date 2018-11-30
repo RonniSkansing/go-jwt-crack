@@ -16,8 +16,8 @@ type flags struct {
 }
 
 const (
-	modeShowInformation           = "identify"
-	modeTryGuessAtPassword        = "secret"
+	modeShowInformation           = "info"
+	modeTryGuessAtPassword        = "guess"
 	modeGuessPasswordWithWordList = "wordlist"
 )
 
@@ -28,7 +28,7 @@ var modes = []string{
 }
 
 func main() {
-	art()
+	printAppHeader()
 	flags := getFlags()
 
 	if isValidModeInFlags(flags) == false {
@@ -73,13 +73,9 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		reader := bufio.NewReader(wordListInFile)
-		for {
-			secretLine, err := reader.ReadBytes('\n')
-			if err != nil {
-				break
-			}
-			secret := string(secretLine[0 : len(secretLine)-1]) // strip newline
+		stringScanner := bufio.NewScanner(wordListInFile)
+		for stringScanner.Scan() {
+			secret := stringScanner.Text()
 			if IsSecretUsedForTokenSignature(token, secret) == false {
 				if flags.verbose {
 					printIncorrectGuessAtSecret(secret)
@@ -134,6 +130,6 @@ func printUnknownMode() {
 	fmt.Printf("Unknown mode. Mode must be 'identify', 'password' or 'wordList'\n")
 }
 
-func art() {
-	fmt.Println("JTW-CRACK 0.0")
+func printAppHeader() {
+	fmt.Println("JTW-CRACK 0.0.1")
 }
