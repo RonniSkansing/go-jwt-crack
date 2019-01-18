@@ -2,134 +2,131 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 )
-
-type flags struct {
-	token    string
-	mode     string
-	secret   string
-	wordList string
-	verbose  bool
-}
-
-const (
-	modeShowInformation           = "info"
-	modeTryGuessAtPassword        = "guess"
-	modeGuessPasswordWithWordList = "wordlist"
-)
-
-var modes = []string{
-	modeShowInformation,
-	modeTryGuessAtPassword,
-	modeGuessPasswordWithWordList,
-}
 
 func main() {
-	printAppHeader()
-	flags := getFlags()
+	fmt.Println("JTW-CRACK 0.0.2")
+	var (
+		infoMode     = "info"
+		guessMode    = "guess"
+		wordlistMode = "wordlist"
+	)
+	modes := map[string][]string{
+		"mode": {infoMode, guessMode, wordlistMode},
+	}
+	var (
+		mode     = flag.String("m", "", "Mode")
+		token    = flag.String("t", "", "jwt Token")
+		secret   = flag.String("k", "", "Test secret")
+		wordList = flag.String("w", "", "Wordlist")
+		verbose  = flag.Bool("v", false, "Verbose output")
+	)
+	flag.Parse()
 
-	if isValidModeInFlags(flags) == false {
-		printUnknownMode()
-		return
+	if _, ok := modes[*mode]; !ok {
+		log.Fatalf("missing or invalid mode. -m must be %s, %s or %s\n", infoMode, guessMode, wordlistMode)
 	}
 
-	switch flags.mode {
-	case modeShowInformation:
-		jwt, err := NewFromTokenString(flags.token)
+	switch *mode {
+	case infoMode:
+		t, err := NewFromTokenString(*token)
 		if err != nil {
-			fmt.Println(err)
-			return
+			log.Fatalf("failed to decode token: %v\n", err)
 		}
-		printDecodedTokenHeaderAndPayload(jwt.Header(), jwt.Payload())
-	case modeTryGuessAtPassword:
-		token, err := NewFromTokenString(flags.token)
+		fmt.Printf("\nHead : %s\nPayload : %s\n", t.Header, t.Payload)
+	case guessMode:
+		t, err := NewFromTokenString(*token)
 		if err != nil {
-			fmt.Println(err)
-			return
+			log.Fatalf("failed to decode token: %v\n", err)
 		}
-		if IsSecretUsedForTokenSignature(token, flags.secret) == false {
-			printIncorrectGuessAtSecret(flags.secret)
-			return
+		if IsSecretUsedForTokenSignature(*t, *secret) == false {
+			log.Printf("incorrect guess : %s\n", *secret)
+			os.Exit(1)
 		}
-		printCorrectGuessAtSecret(flags.secret)
-	case modeGuessPasswordWithWordList:
-		wordListInFile, err := os.Open(flags.wordList)
+		fmt.Printf("correct password : %s\n", *secret)
+	case wordlistMode:
+		wordListInFile, err := os.Open(*wordList)
+		defer wordListInFile.Close()
 		if err != nil {
-			fmt.Println(err)
-			return
+			log.Fatalf("failed to open wordlist %s : %v\n", *wordList, err)
 		}
-		defer func() {
-			err := wordListInFile.Close()
-			if err != nil {
-				fmt.Println(err)
-			}
-		}()
-
-		token, err := NewFromTokenString(flags.token)
+		token, err := NewFromTokenString(*token)
 		if err != nil {
-			fmt.Println(err)
+			log.Fatalf("failed to decode token: %v\n", err)
 			return
 		}
 		stringScanner := bufio.NewScanner(wordListInFile)
 		for stringScanner.Scan() {
 			secret := stringScanner.Text()
-			if IsSecretUsedForTokenSignature(token, secret) == false {
-				if flags.verbose {
-					printIncorrectGuessAtSecret(secret)
+			if IsSecretUsedForTokenSignature(*token, secret) == false {
+				if *verbose {
+					fmt.Printf("incorrect password : %v", secret)
 				}
 				continue
 			} else {
-				printCorrectGuessAtSecret(secret)
+				fmt.Printf("correct password : %s", secret)
 				break
 			}
 		}
-	default:
-		printUnknownMode()
-		return
 	}
 }
 
-func getFlags() *flags {
-	token := flag.String("t", "", "JWT Token")
-	mode := flag.String("m", "", "Mode")
-	secret := flag.String("k", "", "Test secret")
-	wordList := flag.String("w", "", "Wordlist")
-	verbose := flag.Bool("v", false, "Verbose output")
+var InvalidTokenErrorMessage = "invalid token, token must follow form header.payload.signature"
 
-	flag.Parse()
-	return &flags{token: *token, mode: *mode, secret: *secret, wordList: *wordList, verbose: *verbose}
+type Jwt struct {
+	Header           []byte
+	Payload          []byte
+	Signature        []byte
+	EncodedHeader    []byte
+	EncodedPayload   []byte
+	EncodedSignature []byte
 }
 
-func isValidModeInFlags(flags *flags) bool {
-	isValidMode := false
-	for _, mode := range modes {
-		if mode == flags.mode {
-			isValidMode = true
-		}
+func IsSecretUsedForTokenSignature(t Jwt, secret string) bool {
+	b := fmt.Sprintf("%s.%s",t.EncodedHeader, t.EncodedPayload)
+	m := hmac.New(sha256.New, []byte(secret))
+	m.Write([]byte(b))
+	signature := m.Sum(nil)
+
+	return bytes.Equal(signature, t.Signature)
+}
+
+func NewFromTokenString(token string) (*Jwt, error) {
+	t := strings.Split(token, ".")
+	tl := len(t)
+
+	if tl != 3 {
+		return nil, errors.New(InvalidTokenErrorMessage)
+	}
+	encodedHeader, err := base64.RawURLEncoding.DecodeString(t[0])
+	if err != nil {
+		return nil, err
+	}
+	encodedPayload, err := base64.RawURLEncoding.DecodeString(t[1])
+	if err != nil {
+		return nil, err
+	}
+	encodedSignature, err := base64.RawURLEncoding.DecodeString(t[2])
+	if err != nil {
+		return nil, err
 	}
 
-	return isValidMode
-}
-
-func printCorrectGuessAtSecret(secret string) {
-	fmt.Printf("Correct secret : %s\n", secret)
-}
-
-func printIncorrectGuessAtSecret(secret string) {
-	fmt.Printf("Incorrect secret - %s\n", secret)
-}
-
-func printDecodedTokenHeaderAndPayload(decodedHeader []byte, decodedPayload []byte) {
-	fmt.Printf("\nHead : %s\nPayload : %s\n", decodedHeader, decodedPayload)
-}
-
-func printUnknownMode() {
-	fmt.Printf("Unknown mode. Mode must be 'info', 'guess' or 'wordList'\n")
-}
-
-func printAppHeader() {
-	fmt.Println("JTW-CRACK 0.0.1")
+	return &Jwt{
+		Header:           encodedHeader,
+		Payload:          encodedPayload,
+		Signature:        encodedSignature,
+		EncodedHeader:    []byte(t[0]),
+		EncodedPayload:   []byte(t[1]),
+		EncodedSignature: []byte(t[2]),
+	}, nil
 }

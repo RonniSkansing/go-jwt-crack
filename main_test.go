@@ -9,7 +9,7 @@ import (
 )
 
 var secret = "your-256-bit-secret"
-var header = `{"alg":"HS256","typ":"JWT"}`
+var header = `{"alg":"HS256","typ":"Jwt"}`
 var payload = `{"sub":"1234567890","name":"John Doe","iat":1516239022}`
 var encodedHeader = base64.RawURLEncoding.EncodeToString([]byte(header))
 var encodedPayload = base64.RawURLEncoding.EncodeToString([]byte(payload))
@@ -34,9 +34,9 @@ func buildToken(header string, payload string, signature string) string {
 	return header + "." + payload + "." + signature
 }
 
-func jwtToken() JWT {
+func jwtToken() Jwt {
 	jwt, _ := NewFromTokenString(token)
-	return jwt
+	return *jwt
 }
 
 func TestNewFromTokenString(t *testing.T) {
@@ -52,7 +52,7 @@ func newFromTokenStringErrorsIfNotHavingHeaderAndPayloadAndSignature(t *testing.
 	if err == nil {
 		t.Errorf("incomplete token ( %s ) must error", incompleteToken)
 	}
-	if err.Error() != invalidToken {
+	if err.Error() != InvalidTokenErrorMessage {
 		t.Errorf("wrong error message")
 	}
 }
@@ -83,43 +83,43 @@ func newFromTokenStringErrorsIfNotAbleToDecodeSignature(t *testing.T) {
 
 func TestJwt_Header(t *testing.T) {
 	jwt := jwtToken()
-	if bytes.Equal(jwt.Header(), []byte(header)) == false {
-		t.Errorf("returned header does not match header\n%#v\n!=\n%#v", jwt.Header(), []byte(header))
+	if bytes.Equal(jwt.Header, []byte(header)) == false {
+		t.Errorf("returned header does not match header\n%#v\n!=\n%#v", jwt.Header, []byte(header))
 	}
 }
 
 func TestJwt_Payload(t *testing.T) {
 	jwt := jwtToken()
-	if bytes.Equal(jwt.Payload(), []byte(payload)) == false {
-		t.Errorf("returned payload does not match payload\n%#v\n!=\n%#v", jwt.Header(), []byte(payload))
+	if bytes.Equal(jwt.Payload, []byte(payload)) == false {
+		t.Errorf("returned payload does not match payload\n%#v\n!=\n%#v", jwt.Header, []byte(payload))
 	}
 }
 
 func TestJwt_Signature(t *testing.T) {
 	jwt := jwtToken()
-	if bytes.Equal(jwt.Signature(), signature) == false {
-		t.Errorf("returned signature does not match signature\n%#v\n!=\n%#v", jwt.Header(), []byte(payload))
+	if bytes.Equal(jwt.Signature, signature) == false {
+		t.Errorf("returned signature does not match signature\n%#v\n!=\n%#v", jwt.Header, []byte(payload))
 	}
 }
 
 func TestJwt_EncodedHeader(t *testing.T) {
 	jwt := jwtToken()
-	if bytes.Equal(jwt.EncodedHeader(), []byte(encodedHeader)) == false {
-		t.Errorf("returned encoded header does not match encoded header ( %v != %s )", jwt.EncodedHeader(), encodedHeader)
+	if bytes.Equal(jwt.EncodedHeader, []byte(encodedHeader)) == false {
+		t.Errorf("returned encoded header does not match encoded header ( %v != %s )", jwt.EncodedHeader, encodedHeader)
 	}
 }
 
 func TestJwt_EncodedPayload(t *testing.T) {
 	jwt := jwtToken()
-	if bytes.Equal(jwt.EncodedPayload(), []byte(encodedPayload)) == false {
-		t.Errorf("returned encoded payload does not match encoded payload ( %s != %s )", jwt.EncodedPayload(), encodedPayload)
+	if bytes.Equal(jwt.EncodedPayload, []byte(encodedPayload)) == false {
+		t.Errorf("returned encoded payload does not match encoded payload ( %s != %s )", jwt.EncodedPayload, encodedPayload)
 	}
 }
 
 func TestJwt_EncodedSignature(t *testing.T) {
 	jwt := jwtToken()
-	if bytes.Equal(jwt.EncodedSignature(), []byte(encodedSignature)) == false {
-		t.Errorf("returned encoded signature does not match encoded signature ( %s != %s )", jwt.EncodedSignature(), encodedSignature)
+	if bytes.Equal(jwt.EncodedSignature, []byte(encodedSignature)) == false {
+		t.Errorf("returned encoded signature does not match encoded signature ( %s != %s )", jwt.EncodedSignature, encodedSignature)
 	}
 }
 
@@ -132,14 +132,14 @@ func TestIsSecretUsedForTokenSignature(t *testing.T) {
 	testISSecretReturnsFalseWhenSignatureMatches(t, jwt, incorrectSecret)
 }
 
-func testISSecretReturnsTrueWhenSignatureMatches(t *testing.T, jwt JWT, secret string) {
-	if IsSecretUsedForTokenSignature(jwt, secret) == false {
+func testISSecretReturnsTrueWhenSignatureMatches(t *testing.T, jw  Jwt, secret string) {
+	if IsSecretUsedForTokenSignature(jw, secret) == false {
 		t.Errorf("Signture was expected to match, but did not")
 	}
 }
 
-func testISSecretReturnsFalseWhenSignatureMatches(t *testing.T, jwt JWT, secret string) {
-	if IsSecretUsedForTokenSignature(jwt, secret) == true {
+func testISSecretReturnsFalseWhenSignatureMatches(t *testing.T, jw Jwt, secret string) {
+	if IsSecretUsedForTokenSignature(jw, secret) == true {
 		t.Errorf("Signture was not expected to match, but did")
 	}
 }
