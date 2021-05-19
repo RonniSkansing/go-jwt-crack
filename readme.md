@@ -1,3 +1,7 @@
+# Pretext
+This was written for educational purpose.
+If you want to crack JWT tokens, you should consider using hashcat, not this tool.
+
 # Go JWT Crack
 
 For cracking JWT tokens.
